@@ -107,13 +107,16 @@ row.querySelector(".copy").onclick = async () => {
         fallback.id = "fallbackCopy";
         fallback.style.whiteSpace = "pre-wrap";
         fallback.style.overflow = "auto";
-        fallback.style.height = "3em"; /* exactly 2 lines tall */
+        fallback.style.height = "3em"; // exactly 2 lines
         fallback.style.lineHeight = "1.5em";
         fallback.style.marginTop = "6px";
-        fallback.style.border = "1px solid #ccc";
-        fallback.style.padding = "4px";
+        fallback.style.border = "1px solid #444";
+        fallback.style.padding = "6px";
         fallback.style.borderRadius = "6px";
-        fallback.style.background = "#f5f5f5";
+        fallback.style.background = "#222"; // dark gray
+        fallback.style.color = "#fff"; // white text
+        fallback.style.fontFamily = "monospace";
+        fallback.style.fontSize = "0.9rem";
         document.body.appendChild(fallback);
       }
       fallback.textContent = full;
@@ -127,6 +130,7 @@ row.querySelector(".copy").onclick = async () => {
     }, 4000);
   }
 };
+
     boardEl.appendChild(row);
   });
 });
