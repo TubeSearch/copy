@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Cross-Device Clipboard (Chunked)</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+body{font-family:system-ui;background:#111;color:#eee;padding:30px;text-align:center;}
+h1{font-size:1.2rem;margin-bottom:10px;}
+input,textarea{width:90%;max-width:500px;background:#222;color:#eee;border:1px solid #444;border-radius:8px;padding:8px;margin:5px 0;}
+button{background:#8b5cf6;border:none;color:#fff;padding:8px 15px;border-radius:8px;cursor:pointer;margin-top:6px;}
+.item{display:flex;justify-content:space-between;align-items:center;background:#222;margin:6px auto;padding:10px;border-radius:8px;max-width:500px;}
+.copy{background:#444;}
+</style>
+</head>
+<body>
+<h1>📋 Cross-Device Clipboard</h1>
+<input id="title" placeholder="Title"><br>
+<textarea id="content" placeholder="Paste content here..."></textarea><br>
+<button id="saveBtn">Save</button>
+<div id="status"></div>
+<h3>Board</h3>
+<div id="board"></div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
+import { getFirestore, collection, addDoc, setDoc, doc, query, orderBy, onSnapshot, getDocs } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyCmvpDUkWuX8jfz6uA5N0i7OgwqXwzQw_M",
+  authDomain: "copyandpaste-fd810.firebaseapp.com",
+  projectId: "copyandpaste-fd810",
+};
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+const MAX_CHUNK = 900000; // ~900KB per chunk
+const titleEl = document.getElementById("title");
+const contentEl = document.getElementById("content");
+const statusEl = document.getElementById("status");
+const boardEl = document.getElementById("board");
+
+async function saveClip() {
+  const title = titleEl.value.trim() || "(untitled)";
+  const content = contentEl.value;
+  if (!content) return (statusEl.textContent = "No content!");
+  statusEl.textContent = "Saving...";
+
+  // create clip doc
+  const clipRef = await addDoc(collection(db, "clips"), {
+    title,
+    created: Date.now(),
+    parts: Math.ceil(content.length / MAX_CHUNK)
+  });
+
+  // split into chunks
+  const partCol = collection(db, "clips", clipRef.id, "chunks");
+  for (let i = 0; i < content.length; i += MAX_CHUNK) {
+    const chunk = content.slice(i, i + MAX_CHUNK);
+    await setDoc(doc(partCol, String(i / MAX_CHUNK)), { data: chunk });
+  }
+
+  statusEl.textContent = "Saved ✅";
+  titleEl.value = "";
+  contentEl.value = "";
+}
+
+document.getElementById("saveBtn").onclick = saveClip;
+
+// Load board
+onSnapshot(query(collection(db, "clips"), orderBy("created", "desc")), async (snap) => {
+  boardEl.innerHTML = "";
+  snap.forEach(docSnap => {
+    const clip = docSnap.data();
+    const row = document.createElement("div");
+    row.className = "item";
+    row.innerHTML = `<span>${clip.title}</span><button class="copy">Copy</button>`;
+    row.querySelector(".copy").onclick = async () => {
+      statusEl.textContent = "Loading...";
+      const parts = await getDocs(collection(db, "clips", docSnap.id, "chunks"));
+      const chunks = [];
+      parts.forEach(p => chunks[Number(p.id)] = p.data().data);
+      const full = chunks.join("");
+      await navigator.clipboard.writeText(full);
+      statusEl.textContent = "Copied ✅";
+    };
+    boardEl.appendChild(row);
+  });
+});
+</script>
+</body>
+</html>
