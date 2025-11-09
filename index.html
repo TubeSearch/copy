@@ -46,23 +46,29 @@ async function saveClip() {
   if (!content) return (statusEl.textContent = "No content!");
   statusEl.textContent = "Saving...";
 
-  // create clip doc
-  const clipRef = await addDoc(collection(db, "clips"), {
-    title,
-    created: Date.now(),
-    parts: Math.ceil(content.length / MAX_CHUNK)
-  });
+  try {
+    // create clip doc
+    const clipRef = await addDoc(collection(db, "clips"), {
+      title,
+      created: Date.now(),
+      parts: Math.ceil(content.length / MAX_CHUNK)
+    });
 
-  // split into chunks
-  const partCol = collection(db, "clips", clipRef.id, "chunks");
-  for (let i = 0; i < content.length; i += MAX_CHUNK) {
-    const chunk = content.slice(i, i + MAX_CHUNK);
-    await setDoc(doc(partCol, String(i / MAX_CHUNK)), { data: chunk });
+    // split into chunks
+    const partCol = collection(db, "clips", clipRef.id, "chunks");
+    for (let i = 0; i < content.length; i += MAX_CHUNK) {
+      const chunk = content.slice(i, i + MAX_CHUNK);
+      const index = String(i / MAX_CHUNK);
+      await setDoc(doc(partCol, index), { data: chunk });
+    }
+
+    statusEl.textContent = "Saved ✅";
+    titleEl.value = "";
+    contentEl.value = "";
+  } catch (err) {
+    console.error(err);
+    statusEl.textContent = "Error saving! Check console.";
   }
-
-  statusEl.textContent = "Saved ✅";
-  titleEl.value = "";
-  contentEl.value = "";
 }
 
 document.getElementById("saveBtn").onclick = saveClip;
@@ -75,14 +81,26 @@ onSnapshot(query(collection(db, "clips"), orderBy("created", "desc")), async (sn
     const row = document.createElement("div");
     row.className = "item";
     row.innerHTML = `<span>${clip.title}</span><button class="copy">Copy</button>`;
+
     row.querySelector(".copy").onclick = async () => {
       statusEl.textContent = "Loading...";
-      const parts = await getDocs(collection(db, "clips", docSnap.id, "chunks"));
-      const chunks = [];
-      parts.forEach(p => chunks[Number(p.id)] = p.data().data);
-      const full = chunks.join("");
-      await navigator.clipboard.writeText(full);
-      statusEl.textContent = "Copied ✅";
+      try {
+        const partsSnap = await getDocs(collection(db, "clips", docSnap.id, "chunks"));
+        const chunks = [];
+        partsSnap.forEach(p => {
+          chunks.push({ i: Number(p.id), d: p.data().data });
+        });
+        // sort by numeric id
+        chunks.sort((a,b) => a.i - b.i);
+        const full = chunks.map(c => c.d).join("");
+        await navigator.clipboard.writeText(full);
+        statusEl.textContent = "Copied ✅";
+      } catch (err) {
+        console.error(err);
+        statusEl.textContent = "Error loading or copying.";
+      } finally {
+        setTimeout(() => statusEl.textContent = "", 2000);
+      }
     };
     boardEl.appendChild(row);
   });
